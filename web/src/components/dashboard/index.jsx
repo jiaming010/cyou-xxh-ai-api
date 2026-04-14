@@ -17,7 +17,7 @@ along with this program. If not, see <https://www.gnu.org/licenses/>.
 For commercial licensing, please contact support@quantumnous.com
 */
 
-import React, { useContext, useEffect } from 'react';
+import React, { useContext, useEffect, useRef } from 'react';
 import { getRelativeTime } from '../../helpers';
 import { UserContext } from '../../context/User';
 import { StatusContext } from '../../context/Status';
@@ -29,6 +29,7 @@ import ApiInfoPanel from './ApiInfoPanel';
 import AnnouncementsPanel from './AnnouncementsPanel';
 import FaqPanel from './FaqPanel';
 import UptimePanel from './UptimePanel';
+import AdminUsersPanel from './AdminUsersPanel';
 import SearchModal from './modals/SearchModal';
 
 import { useDashboardData } from '../../hooks/dashboard/useDashboardData';
@@ -89,9 +90,18 @@ const Dashboard = () => {
   const loadUserData = async () => {
     if (dashboardData.isAdminUser) {
       const userData = await dashboardData.loadUserQuotaData();
+      const userModelData = await dashboardData.loadUserModelData();
       if (userData && userData.length > 0) {
         dashboardCharts.updateUserChartData(userData);
+        dashboardCharts.updateUserModelChartData(userData, userModelData);
       }
+    }
+  };
+
+  const loadTokenData = async () => {
+    const tokenData = await dashboardData.loadTokenQuotaData();
+    if (tokenData && tokenData.length > 0) {
+      dashboardCharts.updateTokenChartData(tokenData);
     }
   };
 
@@ -102,6 +112,7 @@ const Dashboard = () => {
       }
     });
     await loadUserData();
+    await loadTokenData();
     await dashboardData.loadUptimeData();
   };
 
@@ -111,12 +122,30 @@ const Dashboard = () => {
       dashboardCharts.updateChartData(data);
     }
     await loadUserData();
+    await loadTokenData();
+    await dashboardData.getUserData();
   };
 
   const handleSearchConfirm = async () => {
     await dashboardData.handleSearchConfirm(dashboardCharts.updateChartData);
     await loadUserData();
+    await loadTokenData();
+    await dashboardData.getUserData();
   };
+
+  const quickTimeRangeTriggered = useRef(false);
+
+  const handleQuickTimeRange = (range) => {
+    quickTimeRangeTriggered.current = true;
+    dashboardData.handleQuickTimeRange(range);
+  };
+
+  useEffect(() => {
+    if (quickTimeRangeTriggered.current) {
+      quickTimeRangeTriggered.current = false;
+      handleRefresh();
+    }
+  }, [dashboardData.inputs.start_timestamp, dashboardData.inputs.end_timestamp]);
 
   // ========== 数据准备 ==========
   const apiInfoData = statusState?.status?.api_info || [];
@@ -158,6 +187,9 @@ const Dashboard = () => {
         showSearchModal={dashboardData.showSearchModal}
         refresh={handleRefresh}
         loading={dashboardData.loading}
+        activeTimeRange={dashboardData.activeTimeRange}
+        quickTimeRanges={dashboardData.quickTimeRanges}
+        onQuickTimeRange={handleQuickTimeRange}
         t={dashboardData.t}
       />
 
@@ -196,6 +228,9 @@ const Dashboard = () => {
             spec_rank_bar={dashboardCharts.spec_rank_bar}
             spec_user_rank={dashboardCharts.spec_user_rank}
             spec_user_trend={dashboardCharts.spec_user_trend}
+            spec_token_bar={dashboardCharts.spec_token_bar}
+            spec_user_token_rank={dashboardCharts.spec_user_token_rank}
+            spec_user_model_bar={dashboardCharts.spec_user_model_bar}
             isAdminUser={dashboardData.isAdminUser}
             CARD_PROPS={CARD_PROPS}
             CHART_CONFIG={CHART_CONFIG}
@@ -217,6 +252,19 @@ const Dashboard = () => {
           )}
         </div>
       </div>
+
+      {/* 管理员用户消耗明细面板 */}
+      {dashboardData.isAdminUser && (
+        <div className='mb-4'>
+          <AdminUsersPanel
+            userData={dashboardData.userModelData}
+            userModelData={dashboardData.userModelData}
+            CARD_PROPS={CARD_PROPS}
+            CHART_CONFIG={CHART_CONFIG}
+            t={dashboardData.t}
+          />
+        </div>
+      )}
 
       {/* 系统公告和常见问答卡片 */}
       {dashboardData.hasInfoPanels && (

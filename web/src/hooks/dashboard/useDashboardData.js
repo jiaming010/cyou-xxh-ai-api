@@ -21,8 +21,8 @@ import { useState, useEffect, useRef, useCallback, useMemo } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useTranslation } from 'react-i18next';
 import { API, isAdmin, showError, timestamp2string } from '../../helpers';
-import { getDefaultTime, getInitialTimestamp } from '../../helpers/dashboard';
-import { TIME_OPTIONS } from '../../constants/dashboard.constants';
+import { getDefaultTime } from '../../helpers/dashboard';
+import { TIME_OPTIONS, QUICK_TIME_RANGES } from '../../constants/dashboard.constants';
 import { useIsMobile } from '../common/useIsMobile';
 import { useMinimumLoadingTime } from '../common/useMinimumLoadingTime';
 
@@ -43,7 +43,9 @@ export const useDashboardData = (userState, userDispatch, statusState) => {
     username: '',
     token_name: '',
     model_name: '',
-    start_timestamp: getInitialTimestamp(),
+    start_timestamp: timestamp2string(
+      new Date(new Date().getTime() - 7 * 24 * 3600 * 1000).getTime() / 1000,
+    ),
     end_timestamp: timestamp2string(new Date().getTime() / 1000 + 3600),
     channel: '',
     data_export_default_time: '',
@@ -60,6 +62,15 @@ export const useDashboardData = (userState, userDispatch, statusState) => {
   const [pieData, setPieData] = useState([{ type: 'null', value: '0' }]);
   const [lineData, setLineData] = useState([]);
   const [modelColors, setModelColors] = useState({});
+
+  // ========== Token 统计数据 ==========
+  const [tokenQuotaData, setTokenQuotaData] = useState([]);
+
+  // ========== 用户模型消耗数据（管理员） ==========
+  const [userModelData, setUserModelData] = useState([]);
+
+  // ========== 快捷时间范围 ==========
+  const [activeTimeRange, setActiveTimeRange] = useState('7d');
 
   // ========== 图表状态 ==========
   const [activeChartTab, setActiveChartTab] = useState('1');
@@ -143,6 +154,9 @@ export const useDashboardData = (userState, userDispatch, statusState) => {
       setDataExportDefaultTime(value);
       localStorage.setItem('data_export_default_time', value);
       return;
+    }
+    if (name === 'start_timestamp' || name === 'end_timestamp') {
+      setActiveTimeRange('custom');
     }
     setInputs((inputs) => ({ ...inputs, [name]: value }));
   }, []);
@@ -234,6 +248,82 @@ export const useDashboardData = (userState, userDispatch, statusState) => {
     }
   }, [inputs, isAdminUser]);
 
+  const loadTokenQuotaData = useCallback(async () => {
+    try {
+      const { start_timestamp, end_timestamp } = inputs;
+      const localStartTimestamp = Date.parse(start_timestamp) / 1000;
+      const localEndTimestamp = Date.parse(end_timestamp) / 1000;
+      const url = `/api/data/self/tokens?start_timestamp=${localStartTimestamp}&end_timestamp=${localEndTimestamp}`;
+      const res = await API.get(url);
+      const { success, message, data } = res.data;
+      if (success) {
+        setTokenQuotaData(data || []);
+        return data || [];
+      } else {
+        showError(message);
+        return [];
+      }
+    } catch (err) {
+      console.error(err);
+      return [];
+    }
+  }, [inputs]);
+
+  const loadUserModelData = useCallback(async () => {
+    if (!isAdminUser) return [];
+    try {
+      const { start_timestamp, end_timestamp } = inputs;
+      const localStartTimestamp = Date.parse(start_timestamp) / 1000;
+      const localEndTimestamp = Date.parse(end_timestamp) / 1000;
+      const url = `/api/data/users/models?start_timestamp=${localStartTimestamp}&end_timestamp=${localEndTimestamp}`;
+      const res = await API.get(url);
+      const { success, message, data } = res.data;
+      if (success) {
+        setUserModelData(data || []);
+        return data || [];
+      } else {
+        showError(message);
+        return [];
+      }
+    } catch (err) {
+      console.error(err);
+      return [];
+    }
+  }, [inputs, isAdminUser]);
+
+  const handleQuickTimeRange = useCallback((range) => {
+    const now = new Date();
+    let start;
+    const end = new Date(now.getTime() + 3600 * 1000);
+
+    switch (range) {
+      case 'today':
+        start = new Date(now.getFullYear(), now.getMonth(), now.getDate());
+        break;
+      case 'yesterday': {
+        const yesterday = new Date(now);
+        yesterday.setDate(yesterday.getDate() - 1);
+        start = new Date(yesterday.getFullYear(), yesterday.getMonth(), yesterday.getDate());
+        break;
+      }
+      case '7d':
+        start = new Date(now.getTime() - 7 * 24 * 3600 * 1000);
+        break;
+      case '30d':
+        start = new Date(now.getTime() - 30 * 24 * 3600 * 1000);
+        break;
+      default:
+        return;
+    }
+
+    setActiveTimeRange(range);
+    setInputs((prev) => ({
+      ...prev,
+      start_timestamp: timestamp2string(start.getTime() / 1000),
+      end_timestamp: timestamp2string(end.getTime() / 1000),
+    }));
+  }, []);
+
   const getUserData = useCallback(async () => {
     let res = await API.get(`/api/user/self`);
     const { success, message, data } = res.data;
@@ -301,6 +391,16 @@ export const useDashboardData = (userState, userDispatch, statusState) => {
     modelColors,
     setModelColors,
 
+    // Token 统计数据
+    tokenQuotaData,
+
+    // 用户模型消耗数据（管理员）
+    userModelData,
+
+    // 快捷时间范围
+    activeTimeRange,
+    quickTimeRanges: QUICK_TIME_RANGES,
+
     // 图表状态
     activeChartTab,
     setActiveChartTab,
@@ -332,11 +432,14 @@ export const useDashboardData = (userState, userDispatch, statusState) => {
     showSearchModal,
     handleCloseModal,
     loadQuotaData,
+    loadTokenQuotaData,
     loadUserQuotaData,
+    loadUserModelData,
     loadUptimeData,
     getUserData,
     refresh,
     handleSearchConfirm,
+    handleQuickTimeRange,
 
     // 导航和翻译
     navigate,

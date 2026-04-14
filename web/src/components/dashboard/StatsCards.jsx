@@ -42,7 +42,7 @@ const StatsCards = ({
             className={`${group.color} border-0 !rounded-2xl w-full`}
             title={group.title}
           >
-            <div className='space-y-4'>
+            <div className='space-y-4 max-h-40 overflow-y-auto scrollbar-hide'>
               {group.items.map((item, itemIdx) => (
                 <div
                   key={itemIdx}

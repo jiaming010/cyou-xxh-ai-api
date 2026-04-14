@@ -43,6 +43,7 @@ const routerMap = {
   setting: '/console/setting',
   about: '/about',
   detail: '/console',
+  report: '/console/report',
   pricing: '/pricing',
   task: '/console/task',
   models: '/console/models',
@@ -78,6 +79,12 @@ const SiderBar = ({ onNavigate = () => {} }) => {
           localStorage.getItem('enable_data_export') === 'true'
             ? ''
             : 'tableHiddle',
+      },
+      {
+        text: t('数据报表'),
+        itemKey: 'report',
+        to: '/report',
+        className: isAdmin() ? '' : 'tableHiddle',
       },
       {
         text: t('令牌管理'),

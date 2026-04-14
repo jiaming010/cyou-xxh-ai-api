@@ -49,6 +49,14 @@ export const DEFAULT_TIME_INTERVALS = {
   week: { seconds: 604800, minutes: 10080 },
 };
 
+// ========== 快捷时间范围 ==========
+export const QUICK_TIME_RANGES = [
+  { label: '今天', value: 'today' },
+  { label: '昨天', value: 'yesterday' },
+  { label: '近7天', value: '7d' },
+  { label: '近30天', value: '30d' },
+];
+
 // ========== 默认时间设置 ==========
 export const DEFAULT_TIME_RANGE = {
   HOUR: 'hour',
@@ -138,6 +146,7 @@ export const UPTIME_STATUS_MAP = {
 export const STORAGE_KEYS = {
   DATA_EXPORT_DEFAULT_TIME: 'data_export_default_time',
   MJ_NOTIFY_ENABLED: 'mj_notify_enabled',
+  DASHBOARD_VIEW_MODE: 'dashboard_view_mode',
 };
 
 // ========== 默认值 ==========

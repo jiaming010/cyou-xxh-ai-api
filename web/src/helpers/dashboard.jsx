@@ -48,20 +48,6 @@ export const getTimeInterval = (timeType, isSeconds = false) => {
   return isSeconds ? intervals.seconds : intervals.minutes;
 };
 
-export const getInitialTimestamp = () => {
-  const defaultTime = getDefaultTime();
-  const now = new Date().getTime() / 1000;
-
-  switch (defaultTime) {
-    case 'hour':
-      return timestamp2string(now - 86400);
-    case 'week':
-      return timestamp2string(now - 86400 * 30);
-    default:
-      return timestamp2string(now - 86400 * 7);
-  }
-};
-
 // ========== 数据处理工具函数 ==========
 export const updateMapValue = (map, key, value) => {
   if (!map.has(key)) {

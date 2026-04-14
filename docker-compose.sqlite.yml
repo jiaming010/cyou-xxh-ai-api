@@ -1,0 +1,21 @@
+services:
+  new-api:
+    image: cyou-new-api:latest
+    container_name: cyou-new-api-dev
+    restart: unless-stopped
+    ports:
+      - "3000:3000"
+    command: --log-dir /app/logs
+    volumes:
+      - ./data:/data
+      - ./logs:/app/logs
+    environment:
+      - TZ=Asia/Shanghai
+      - SQLITE_PATH=/data/new-api.db
+      - MEMORY_CACHE_ENABLED=true
+      - SESSION_SECRET=your-session-secret-change-me
+    healthcheck:
+      test: ["CMD-SHELL", "wget -q -O - http://localhost:3000/api/status | grep -o '\"success\":\\s*true' || exit 1"]
+      interval: 30s
+      timeout: 10s
+      retries: 3

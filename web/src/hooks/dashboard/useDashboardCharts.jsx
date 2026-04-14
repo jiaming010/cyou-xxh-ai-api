@@ -339,6 +339,128 @@ export const useDashboardCharts = (
     color: { type: 'ordinal', range: USER_COLORS },
   });
 
+  // ========== Token 统计图表 ==========
+  const [spec_token_bar, setSpecTokenBar] = useState({
+    type: 'bar',
+    data: [{ id: 'tokenBarData', values: [] }],
+    xField: 'TokenName',
+    yField: 'rawQuota',
+    seriesField: 'Model',
+    stack: true,
+    legends: { visible: true, selectMode: 'single' },
+    title: {
+      visible: true,
+      text: t('API Key 消耗统计'),
+      subtext: '',
+    },
+    bar: {
+      state: { hover: { stroke: '#000', lineWidth: 1 } },
+    },
+    axes: [{
+      orient: 'bottom',
+      type: 'band',
+      label: { visible: true },
+    }, {
+      orient: 'left',
+      label: {
+        formatMethod: (value) => renderQuota(value, 2),
+      },
+    }],
+    tooltip: {
+      mark: {
+        content: [{
+          key: (datum) => `${datum['TokenName']} - ${datum['Model']}`,
+          value: (datum) => renderQuota(datum['rawQuota'] || 0, 4),
+        }],
+      },
+    },
+    color: {
+      specified: modelColorMap,
+    },
+  });
+
+  // ========== Admin: 用户 Token 消耗排行 ==========
+  const [spec_user_token_rank, setSpecUserTokenRank] = useState({
+    type: 'bar',
+    data: [{ id: 'userTokenRankData', values: [] }],
+    xField: 'TokenUsed',
+    yField: 'User',
+    seriesField: 'User',
+    direction: 'horizontal',
+    legends: { visible: false },
+    title: {
+      visible: true,
+      text: t('用户 Token 消耗排行'),
+      subtext: '',
+    },
+    bar: {
+      state: { hover: { stroke: '#000', lineWidth: 1 } },
+    },
+    label: {
+      visible: true,
+      position: 'outside',
+      formatMethod: (value, datum) => renderNumber(datum['TokenUsed'] || 0),
+    },
+    axes: [{
+      orient: 'left',
+      type: 'band',
+      label: { visible: true },
+    }, {
+      orient: 'bottom',
+      type: 'linear',
+      visible: false,
+    }],
+    tooltip: {
+      mark: {
+        content: [{
+          key: (datum) => datum['User'],
+          value: (datum) => renderNumber(datum['TokenUsed'] || 0),
+        }],
+      },
+    },
+    color: { type: 'ordinal', range: USER_COLORS },
+  });
+
+  // ========== Admin: 用户模型消耗分布 ==========
+  const [spec_user_model_bar, setSpecUserModelBar] = useState({
+    type: 'bar',
+    data: [{ id: 'userModelBarData', values: [] }],
+    xField: 'User',
+    yField: 'rawQuota',
+    seriesField: 'Model',
+    stack: true,
+    legends: { visible: true, selectMode: 'single' },
+    title: {
+      visible: true,
+      text: t('用户模型消耗分布'),
+      subtext: '',
+    },
+    bar: {
+      state: { hover: { stroke: '#000', lineWidth: 1 } },
+    },
+    axes: [{
+      orient: 'bottom',
+      type: 'band',
+      label: { visible: true },
+    }, {
+      orient: 'left',
+      label: {
+        formatMethod: (value) => renderQuota(value, 2),
+      },
+    }],
+    tooltip: {
+      mark: {
+        content: [{
+          key: (datum) => `${datum['User']} - ${datum['Model']}`,
+          value: (datum) => renderQuota(datum['rawQuota'] || 0, 4),
+        }],
+      },
+    },
+    color: {
+      specified: modelColorMap,
+    },
+  });
+
   // ========== 数据处理函数 ==========
   const generateModelColors = useCallback((uniqueModels, modelColors) => {
     const newModelColors = {};
@@ -551,6 +673,138 @@ export const useDashboardCharts = (
     [dataExportDefaultTime, t],
   );
 
+  // ========== Token 维度图表数据处理 ==========
+  const updateTokenChartData = useCallback(
+    (data) => {
+      if (!data || data.length === 0) {
+        setSpecTokenBar((prev) => ({
+          ...prev,
+          data: [{ id: 'tokenBarData', values: [] }],
+          title: { ...prev.title, subtext: '' },
+        }));
+        return;
+      }
+
+      const tokenModelMap = new Map();
+      let totalQuota = 0;
+      data.forEach((item) => {
+        const tokenName = item.token_name || `Token#${item.token_id}`;
+        const key = `${tokenName}-${item.model_name}`;
+        const existing = tokenModelMap.get(key);
+        if (existing) {
+          existing.rawQuota += item.quota;
+          existing.count += item.count;
+        } else {
+          tokenModelMap.set(key, {
+            TokenName: tokenName,
+            Model: item.model_name,
+            rawQuota: item.quota,
+            count: item.count,
+          });
+        }
+        totalQuota += item.quota;
+      });
+
+      const chartValues = Array.from(tokenModelMap.values())
+        .sort((a, b) => b.rawQuota - a.rawQuota);
+
+      const uniqueModels = new Set(chartValues.map((v) => v.Model));
+      const newModelColors = {};
+      uniqueModels.forEach((model) => {
+        newModelColors[model] = modelColorMap[model] || modelToColor(model);
+      });
+
+      setSpecTokenBar((prev) => ({
+        ...prev,
+        data: [{ id: 'tokenBarData', values: chartValues }],
+        title: {
+          ...prev.title,
+          subtext: `${t('总计')}：${renderQuota(totalQuota, 2)}`,
+        },
+        color: { specified: { ...modelColorMap, ...newModelColors } },
+      }));
+    },
+    [t],
+  );
+
+  // ========== 用户模型维度图表数据处理 ==========
+  const updateUserModelChartData = useCallback(
+    (userData, userModelData) => {
+      if (!userData || userData.length === 0) return;
+
+      const userTokenTotal = new Map();
+      userData.forEach((item) => {
+        const prev = userTokenTotal.get(item.username) || 0;
+        userTokenTotal.set(item.username, prev + (item.token_used || 0));
+      });
+
+      const tokenRankValues = Array.from(userTokenTotal.entries())
+        .map(([username, tokenUsed]) => ({
+          User: username,
+          TokenUsed: tokenUsed,
+        }))
+        .sort((a, b) => b.TokenUsed - a.TokenUsed)
+        .slice(0, 10);
+
+      const totalTokens = tokenRankValues.reduce((s, i) => s + i.TokenUsed, 0);
+
+      setSpecUserTokenRank((prev) => ({
+        ...prev,
+        data: [{ id: 'userTokenRankData', values: tokenRankValues }],
+        title: {
+          ...prev.title,
+          subtext: `${t('总计')}：${renderNumber(totalTokens)}`,
+        },
+      }));
+
+      if (userModelData && userModelData.length > 0) {
+        const userQuotaTotal = new Map();
+        userModelData.forEach((item) => {
+          const prev = userQuotaTotal.get(item.username) || 0;
+          userQuotaTotal.set(item.username, prev + item.quota);
+        });
+        const topUsers = Array.from(userQuotaTotal.entries())
+          .sort((a, b) => b[1] - a[1])
+          .slice(0, 10)
+          .map(([u]) => u);
+        const topUserSet = new Set(topUsers);
+
+        const chartValues = [];
+        let totalQuota = 0;
+        const uniqueModels = new Set();
+
+        userModelData.forEach((item) => {
+          if (!topUserSet.has(item.username)) return;
+          uniqueModels.add(item.model_name);
+          chartValues.push({
+            User: item.username,
+            Model: item.model_name,
+            rawQuota: item.quota,
+            TokenUsed: item.token_used || 0,
+            Count: item.count,
+          });
+          totalQuota += item.quota;
+        });
+
+        const newModelColors = {};
+        uniqueModels.forEach((model) => {
+          newModelColors[model] = modelColorMap[model] || modelToColor(model);
+        });
+
+        setSpecUserModelBar((prev) => ({
+          ...prev,
+          data: [{ id: 'userModelBarData', values: chartValues }],
+          title: {
+            ...prev.title,
+            subtext: `${t('总计')}：${renderQuota(totalQuota, 2)}`,
+          },
+          color: { specified: { ...modelColorMap, ...newModelColors } },
+        }));
+      }
+    },
+    [t],
+  );
+
   // ========== 初始化图表主题 ==========
   useEffect(() => {
     initVChartSemiTheme({
@@ -565,8 +819,13 @@ export const useDashboardCharts = (
     spec_rank_bar,
     spec_user_rank,
     spec_user_trend,
+    spec_token_bar,
+    spec_user_token_rank,
+    spec_user_model_bar,
     updateChartData,
     updateUserChartData,
+    updateTokenChartData,
+    updateUserModelChartData,
     generateModelColors,
   };
 };

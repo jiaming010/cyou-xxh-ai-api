@@ -125,6 +125,47 @@ func GetQuotaDataGroupByUser(startTime int64, endTime int64) (quotaData []*Quota
 	return quotaDatas, err
 }
 
+type TokenQuotaData struct {
+	TokenId   int    `json:"token_id"`
+	TokenName string `json:"token_name"`
+	ModelName string `json:"model_name"`
+	CreatedAt int64  `json:"created_at"`
+	TokenUsed int    `json:"token_used"`
+	Count     int    `json:"count"`
+	Quota     int    `json:"quota"`
+}
+
+func GetQuotaDataByUserIdGroupByToken(userId int, startTime int64, endTime int64) ([]*TokenQuotaData, error) {
+	var results []*TokenQuotaData
+	err := LOG_DB.Table("logs").
+		Select("token_id, token_name, model_name, count(*) as count, sum(quota) as quota, sum(prompt_tokens + completion_tokens) as token_used, (created_at - created_at % 3600) as created_at").
+		Where("user_id = ? AND type = 2 AND created_at >= ? AND created_at <= ?", userId, startTime, endTime).
+		Group("token_id, token_name, model_name, (created_at - created_at % 3600)").
+		Find(&results).Error
+	return results, err
+}
+
+func GetQuotaDataByUserAndModel(startTime int64, endTime int64) ([]*QuotaData, error) {
+	var results []*QuotaData
+	err := DB.Table("quota_data").
+		Select("username, model_name, sum(count) as count, sum(quota) as quota, sum(token_used) as token_used").
+		Where("created_at >= ? AND created_at <= ?", startTime, endTime).
+		Group("username, model_name").
+		Find(&results).Error
+	return results, err
+}
+
+func GetQuotaDataSummaryByUser(startTime int64, endTime int64) ([]*QuotaData, error) {
+	var results []*QuotaData
+	err := DB.Table("quota_data").
+		Select("username, sum(count) as count, sum(quota) as quota, sum(token_used) as token_used").
+		Where("created_at >= ? AND created_at <= ?", startTime, endTime).
+		Group("username").
+		Order("quota DESC").
+		Find(&results).Error
+	return results, err
+}
+
 func GetAllQuotaDates(startTime int64, endTime int64, username string) (quotaData []*QuotaData, err error) {
 	if username != "" {
 		return GetQuotaDataByUsername(username, startTime, endTime)
